@@ -429,6 +429,13 @@ class Scheduler(SchedulerInterface):
                 # next step when applicable.
                 request.spec_token_ids = []
 
+            logger.info(f"*** Processing running {request.request_id}, "
+                        f"num_tokens={request.num_tokens}, "
+                        f"num_tokens_with_spec={request.num_tokens_with_spec}, "
+                        f"num_output_placeholders={request.num_output_placeholders}, "
+                        f"num_new_tokens={num_new_tokens}, "
+                        f"num_computed_tokens={request.num_computed_tokens}")
+
             # Encoder-related.
             if encoder_inputs_to_schedule:
                 scheduled_encoder_inputs[request.request_id] = (
@@ -466,9 +473,12 @@ class Scheduler(SchedulerInterface):
 
                 request = self.waiting.peek_request()
 
+                logger.info(f"*** Processing waiting {request.request_id}")
+
                 # KVTransfer: skip request if still waiting for remote kvs.
                 if request.status == RequestStatus.WAITING_FOR_REMOTE_KVS:
                     is_ready = self._update_waiting_for_remote_kv(request)
+                    logger.info(f"waiting for remote KVs, is_ready={is_ready}")
                     if is_ready:
                         if request.num_preemptions:
                             # We must be loading for a resumed preemption
@@ -521,6 +531,8 @@ class Scheduler(SchedulerInterface):
                         self.kv_cache_manager.get_computed_blocks(request)
                     )
 
+                    logger.info(f"num_new_local_computed_tokens={num_new_local_computed_tokens}")
+
                     # Get externally-cached tokens if using a KVConnector.
                     if self.connector is not None:
                         ext_tokens, load_kv_async = (
@@ -539,6 +551,8 @@ class Scheduler(SchedulerInterface):
 
                         request.num_external_computed_tokens = ext_tokens
                         num_external_computed_tokens = ext_tokens
+
+                        logger.info(f"ext_tokens={ext_tokens}")
 
                     # Total computed tokens (local + external).
                     num_computed_tokens = (
@@ -582,6 +596,11 @@ class Scheduler(SchedulerInterface):
                     num_new_tokens = min(num_new_tokens, token_budget)
                     assert num_new_tokens > 0
 
+                    logger.info(f"not load_kv_async, "
+                                f"num_tokens={request.num_tokens}, "
+                                f"num_computed_tokens={num_computed_tokens}, "
+                                f"num_new_tokens={num_new_tokens}")
+
                     # Schedule encoder inputs.
                     if request.has_encoder_inputs:
                         (
@@ -608,6 +627,8 @@ class Scheduler(SchedulerInterface):
                 effective_lookahead_tokens = (
                     0 if request.num_computed_tokens == 0 else self.num_lookahead_tokens
                 )
+
+                logger.info(f"effective_lookahead_tokens={effective_lookahead_tokens}")
 
                 num_encoder_tokens = (
                     self._num_encoder_max_input_tokens
@@ -654,6 +675,7 @@ class Scheduler(SchedulerInterface):
                     # into the WAITING_FOR_REMOTE_KV state.
                     skipped_waiting_requests.prepend_request(request)
                     request.status = RequestStatus.WAITING_FOR_REMOTE_KVS
+                    logger.info("Set status to waiting for remote KVs")
                     continue
 
                 self._update_connector_prefix_cache_stats(request)
@@ -776,6 +798,9 @@ class Scheduler(SchedulerInterface):
             free_encoder_mm_hashes=self.encoder_cache_manager.get_freed_mm_hashes(),
         )
 
+        if scheduler_output.total_num_scheduled_tokens > 0:
+            logger.info(f"*** scheduler_output={scheduler_output}")
+
         # NOTE(Kuntai): this function is designed for multiple purposes:
         # 1. Plan the KV cache store
         # 2. Wrap up all the KV cache load / save ops into an opaque object
@@ -785,6 +810,9 @@ class Scheduler(SchedulerInterface):
                 scheduler_output
             )
             scheduler_output.kv_connector_metadata = meta
+            if hasattr(meta, "requests"):
+                logger.info(f"*** scheduler_output.kv_connector_metadata.requests = {meta.requests}")
+
 
         # Build the connector meta for ECConnector
         if self.ec_connector is not None:
@@ -1143,6 +1171,7 @@ class Scheduler(SchedulerInterface):
             generated_token_ids = (
                 sampled_token_ids[req_index] if sampled_token_ids else []
             )
+            logger.info(f"*** update_from_output {request.request_id}, num generated={len(generated_token_ids)}")
 
             scheduled_spec_token_ids = (
                 scheduler_output.scheduled_spec_decode_tokens.get(req_id)
@@ -1169,6 +1198,7 @@ class Scheduler(SchedulerInterface):
                     num_invalid_spec_tokens=scheduler_output.num_invalid_spec_tokens,
                     request_id=req_id,
                 )
+                logger.info(f"num_draft_tokens={num_draft_tokens}, num_accepted={num_accepted}, num_rejected={num_rejected}")
 
             stopped = False
             new_logprobs = None
@@ -1753,10 +1783,12 @@ class Scheduler(SchedulerInterface):
 
         # KV Connector:: update recv and send status from last step.
         for req_id in kv_connector_output.finished_recving or ():
-            logger.debug("Finished recving KV transfer for request %s", req_id)
+            # logger.debug("Finished recving KV transfer for request %s", req_id)
+            logger.info(f"*** Finished recving KV transfer for request {req_id}")
             self.finished_recving_kv_req_ids.add(req_id)
         for req_id in kv_connector_output.finished_sending or ():
-            logger.debug("Finished sending KV transfer for request %s", req_id)
+            # logger.debug("Finished sending KV transfer for request %s", req_id)
+            logger.info(f"*** Finished sending KV transfer for request {req_id}")
             assert req_id in self.requests
             self._free_blocks(self.requests[req_id])
 
