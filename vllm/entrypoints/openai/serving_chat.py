@@ -310,7 +310,7 @@ class OpenAIServingChat(OpenAIServing):
                 chat_template_kwargs = request.chat_template_kwargs or {}
                 chat_template_kwargs.update(reasoning_effort=request.reasoning_effort)
 
-                logger.info("*** OpenAIServingChat.create_chat_completion"
+                logger.info("*** OpenAIServingChat.create_chat_completion: "
                             f"_preprocess_chat for {request.request_id}")
                 conversation, engine_prompts = await self._preprocess_chat(
                     request,
