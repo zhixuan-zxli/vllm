@@ -865,6 +865,8 @@ class AsyncMPClient(MPClient):
                     frames = await output_socket.recv_multipart(copy=False)
                     resources.validate_alive(frames)
                     outputs: EngineCoreOutputs = decoder.decode(frames)
+                    logger.info("*** AsyncMPClient.process_outputs_socket gets"
+                                f"{len(outputs.outputs)} outputs. ")
                     if outputs.utility_output:
                         _process_utility_output(outputs.utility_output, utility_results)
                         continue
@@ -957,6 +959,7 @@ class AsyncMPClient(MPClient):
         return await self.call_utility_async("get_supported_tasks")
 
     async def add_request_async(self, request: EngineCoreRequest) -> None:
+        logger.info(f"*** AsyncMPClient.add_request_async for {request.request_id}")
         request.client_index = self.client_index
         await self._send_input(EngineCoreRequestType.ADD, request)
         self._ensure_output_queue_task()
@@ -1161,6 +1164,7 @@ class DPAsyncMPClient(AsyncMPClient):
         request.client_index = self.client_index
 
         chosen_engine = self.get_core_engine_for_request(request)
+        logger.info(f"*** DPAsyncMPClient.add_request_async for {request.request_id}, chosen_engine={chosen_engine}")
         to_await = self._send_input(EngineCoreRequestType.ADD, request, chosen_engine)
         if not self.engines_running:
             # Notify coordinator that we're sending a request

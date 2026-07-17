@@ -310,6 +310,8 @@ class OpenAIServingChat(OpenAIServing):
                 chat_template_kwargs = request.chat_template_kwargs or {}
                 chat_template_kwargs.update(reasoning_effort=request.reasoning_effort)
 
+                logger.info("*** OpenAIServingChat.create_chat_completion"
+                            f"_preprocess_chat for {request.request_id}")
                 conversation, engine_prompts = await self._preprocess_chat(
                     request,
                     tokenizer,
@@ -1657,6 +1659,8 @@ class OpenAIServingChat(OpenAIServing):
             ),
             kv_transfer_params=final_res.kv_transfer_params,
         )
+        logger.info("*** OpenAIServingChat.chat_completion_full_generator\n"
+                    f"{request_id} response generated. ")
 
         # Log complete response if output logging is enabled
         if self.enable_log_outputs and self.request_logger:

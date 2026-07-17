@@ -346,6 +346,7 @@ class AsyncLLM(EngineClient):
         params = request.params
 
         if is_pooling or params.n == 1:
+            logger.info(f"*** AsyncLLM.add_request {request.request_id}")
             await self._add_request(request, prompt_text, None, 0, queue)
             return queue
 
@@ -501,6 +502,7 @@ class AsyncLLM(EngineClient):
                     # 1) Pull EngineCoreOutputs from the EngineCore.
                     outputs = await engine_core.get_output_async()
                     num_outputs = len(outputs.outputs)
+                    logger.info(f"*** AsyncLLM.ouput_handler gets {num_outputs} outputs. ")
 
                     iteration_stats = (
                         IterationStats() if (log_stats and num_outputs) else None

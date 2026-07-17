@@ -1300,6 +1300,9 @@ class DPEngineCoreProc(EngineCoreProc):
         self.dp_rank = dp_rank
         self.dp_group = vllm_config.parallel_config.stateless_init_dp_group()
 
+        logger.info("*** DPEngineCoreProc._init_data_parallel: "
+                    f"{dp_rank=}, {dp_size=}, {local_dp_rank=}")
+
     def shutdown(self):
         super().shutdown()
         if dp_group := getattr(self, "dp_group", None):
